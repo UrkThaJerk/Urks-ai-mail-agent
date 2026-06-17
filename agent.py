@@ -1,5 +1,4 @@
 import os
-import json
 from dotenv import load_dotenv
 from openai import OpenAI
 from google.oauth2.credentials import Credentials
@@ -7,10 +6,15 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 
+from video_agent import process_video_jobs
+
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+
+
+def get_openai_client():
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def get_gmail_service():
@@ -29,6 +33,7 @@ def get_gmail_service():
 
 
 def process_emails():
+    client = get_openai_client()
     service = get_gmail_service()
     results = service.users().messages().list(userId="me", q="is:unread").execute()
     messages = results.get("messages", [])
@@ -54,5 +59,13 @@ def process_emails():
         print(f"Generated Draft: {draft_content}")
 
 
-if __name__ == "__main__":
+def run_agent():
+    agent_type = os.getenv("URKS_AGENT_TYPE", "mail").strip().lower()
+    if agent_type == "video":
+        process_video_jobs()
+        return
     process_emails()
+
+
+if __name__ == "__main__":
+    run_agent()
