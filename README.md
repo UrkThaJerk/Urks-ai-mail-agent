@@ -1,6 +1,6 @@
 # Urks-ai-mail-agent
 
-Supports both the original mail workflow and a new prototype video editing agent modeled after the same lightweight agent pattern.
+Supports the original mail workflow, a prototype video editing agent, and a collaborative three-agent mode where specialists work independently before sharing feedback and learnings.
 
 ## Mail agent
 
@@ -20,3 +20,22 @@ python agent.py
 ```
 
 For batch processing, set `VIDEO_BATCH_SPEC` to a JSON file containing a list of `video_path`, `instructions`, and optional `output_path` objects.
+
+## Collaborative three-agent mode
+
+Use `URKS_AGENT_TYPE=collective` to run three separate specialists:
+
+- a mail specialist
+- a video specialist
+- a strategy specialist
+
+Each agent works on the objective independently first, then reviews the other agents' work so the group can learn collectively.
+
+```bash
+URKS_AGENT_TYPE=collective \
+COLLECTIVE_OBJECTIVE='Improve the mail and video workflows together' \
+COLLECTIVE_CONTEXT='Keep the agents separate, but let them share feedback after their first pass.' \
+python agent.py
+```
+
+Set `COLLECTIVE_OUTPUT_PATH` to save the JSON result to a file.
