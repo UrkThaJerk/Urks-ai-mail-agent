@@ -1,0 +1,58 @@
+name: Scheduled Tests & Agent Learning Report
+
+on:
+  schedule:
+    - cron: '0 */2 * * *' # Runs every 2 hours
+  workflow_dispatch: # Allows manual triggers from the UI
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run Tests with Coverage
+        run: |
+          pytest tests/ --cov=agent --cov=mail_agent --cov-report=term-missing --cov-report=xml -v 2>&1 | tee test-results.txt
+        continue-on-error: true
+
+      - name: Generate Agent Learning Report
+        run: |
+          echo "# Agent Learning Report" > agent-learning-report.md
+          echo "" >> agent-learning-report.md
+          echo "**Run date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> agent-learning-report.md
+          echo "" >> agent-learning-report.md
+          echo "## Test Results" >> agent-learning-report.md
+          echo '```' >> agent-learning-report.md
+          cat test-results.txt >> agent-learning-report.md
+          echo '```' >> agent-learning-report.md
+          echo "" >> agent-learning-report.md
+          echo "## Codebase Summary" >> agent-learning-report.md
+          echo "- **agent.py**: Main AI mail agent using OpenAI + Gmail API" >> agent-learning-report.md
+          echo "- **mail_agent.py**: Alternative mail agent implementation" >> agent-learning-report.md
+          echo "- **requirements.txt**: Project dependencies (langchain, langgraph, openai, google APIs)" >> agent-learning-report.md
+          echo "" >> agent-learning-report.md
+          echo "## Key Dependencies" >> agent-learning-report.md
+          sed 's/^/- /' requirements.txt >> agent-learning-report.md
+
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts-${{ github.run_number }}
+          path: |
+            test-results.txt
+            coverage.xml
+            agent-learning-report.md
+          retention-days: 30
