@@ -2,8 +2,7 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-
-from openai import OpenAI
+from typing import Any
 
 
 COLLECTIVE_MODEL = os.getenv("COLLECTIVE_MODEL", "gpt-4o-mini")
@@ -24,12 +23,14 @@ class SpecialistReport:
     peer_learning: str
 
 
-def get_openai_client() -> OpenAI:
+def get_openai_client() -> Any:
+    from openai import OpenAI
+
     return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class CollectiveLearningAgent:
-    def __init__(self, client: OpenAI | None = None) -> None:
+    def __init__(self, client: Any = None) -> None:
         self.client = client or get_openai_client()
         self.specialists = [
             SpecialistAgent(
