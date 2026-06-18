@@ -50,9 +50,15 @@ class CollectiveAgentTests(unittest.TestCase):
         self.assertEqual("collective summary", result["collective_summary"])
         self.assertEqual(7, len(client.chat.completions.calls))
 
+    @patch("collective_agent.get_openai_client", return_value=object())
     @patch("collective_agent.CollectiveLearningAgent.run_collective")
     @patch("builtins.print")
-    def test_process_collective_jobs_writes_output_file_when_requested(self, print_mock, run_collective):
+    def test_process_collective_jobs_writes_output_file_when_requested(
+        self,
+        print_mock,
+        run_collective,
+        _get_openai_client,
+    ):
         run_collective.return_value = {"objective": "Improve", "agents": [], "collective_summary": "Done"}
 
         with tempfile.TemporaryDirectory() as temp_dir:
