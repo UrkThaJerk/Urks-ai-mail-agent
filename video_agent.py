@@ -87,8 +87,25 @@ def _run_media_command(command: list[str]) -> subprocess.CompletedProcess[str]:
         raise VideoEditingError(message) from exc
 
 
-def download_video(url: str, output_dir: str | None = None) -> str:
+def download_video(
+    url: str,
+    output_dir: str | None = None,
+    credentials: "Any | None" = None,
+) -> str:
     """Download a video from a URL (including Twitch VODs) using yt-dlp.
+
+    Parameters
+    ----------
+    url:
+        The URL to download (Twitch VOD, YouTube, Kick, etc.).
+    output_dir:
+        Directory to save the downloaded file.  Defaults to the current
+        working directory.
+    credentials:
+        Optional :class:`streaming_auth.StreamingCredentials` instance.
+        When provided, authentication headers / cookies are injected into
+        the yt-dlp options so that subscriber-only or authenticated content
+        can be downloaded.
 
     Returns the local path to the downloaded file.
     """
@@ -101,6 +118,9 @@ def download_video(url: str, output_dir: str | None = None) -> str:
         "quiet": True,
         "no_warnings": True,
     }
+
+    if credentials is not None and hasattr(credentials, "apply_to_ydl_opts"):
+        ydl_opts = credentials.apply_to_ydl_opts(ydl_opts)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -497,9 +517,22 @@ class VideoEditingAgent:
     def set_export_path(self, project: VideoProject, output_path: str) -> None:
         project.export_path = output_path
 
-    def load_from_url(self, url: str, instructions: str = "", download_dir: str | None = None) -> VideoProject:
-        """Download a video from *url* then load it as a :class:`VideoProject`."""
-        local_path = download_video(url, output_dir=download_dir)
+    def load_from_url(
+        self,
+        url: str,
+        instructions: str = "",
+        download_dir: str | None = None,
+        credentials: "Any | None" = None,
+    ) -> VideoProject:
+        """Download a video from *url* then load it as a :class:`VideoProject`.
+
+        Parameters
+        ----------
+        credentials:
+            Optional :class:`streaming_auth.StreamingCredentials` instance for
+            authenticated downloads (e.g. Twitch subscriber-only VODs).
+        """
+        local_path = download_video(url, output_dir=download_dir, credentials=credentials)
         return self.load_video(local_path, instructions)
 
     def extract_clips_from_scenes(self, project: VideoProject, output_dir: str | None = None) -> list[str]:

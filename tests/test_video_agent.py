@@ -143,7 +143,7 @@ class VideoAgentTests(unittest.TestCase):
             )
 
         mock_download.assert_called_once_with(
-            "https://www.twitch.tv/videos/2800009020", output_dir="/tmp"
+            "https://www.twitch.tv/videos/2800009020", output_dir="/tmp", credentials=None
         )
         mock_load.assert_called_once_with("/tmp/2800009020.mp4", "make clips")
         self.assertIs(fake_project, result)
