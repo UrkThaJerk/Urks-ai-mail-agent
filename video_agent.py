@@ -84,6 +84,71 @@ def _run_media_command(command: list[str]) -> subprocess.CompletedProcess[str]:
         raise VideoEditingError(message) from exc
 
 
+def download_video(url: str, output_dir: str | None = None) -> str:
+    """Download a video from a URL (including Twitch VODs) using yt-dlp.
+
+    Returns the local path to the downloaded file.
+    """
+    import yt_dlp  # imported here so the rest of the module works without yt-dlp installed
+
+    dest_dir = Path(output_dir).expanduser().resolve() if output_dir else Path.cwd()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    ydl_opts: dict[str, Any] = {
+        "outtmpl": str(dest_dir / "%(id)s.%(ext)s"),
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "quiet": True,
+        "no_warnings": True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            downloaded_path = ydl.prepare_filename(info)
+    except Exception as exc:
+        raise VideoEditingError(f"Failed to download video from '{url}': {exc}") from exc
+
+    path = Path(downloaded_path)
+    if not path.exists():
+        # yt-dlp may merge containers and change extension
+        for candidate in sorted(path.parent.glob(f"{path.stem}.*")):
+            if candidate.suffix.lower() in SUPPORTED_VIDEO_FORMATS:
+                return str(candidate)
+        raise VideoEditingError(f"Downloaded file not found at expected path: {path}")
+
+    return str(path)
+
+
+def extract_clip(source_path: str, start_seconds: float, end_seconds: float, output_path: str) -> str:
+    """Extract a time-bounded clip from *source_path* into *output_path* using ffmpeg.
+
+    Returns the output path on success.
+    """
+    if end_seconds <= start_seconds:
+        raise VideoEditingError(
+            f"end_seconds ({end_seconds}) must be greater than start_seconds ({start_seconds})"
+        )
+
+    duration = end_seconds - start_seconds
+    dest = Path(output_path).expanduser().resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    _run_media_command(
+        [
+            "ffmpeg",
+            "-y",
+            "-ss", str(start_seconds),
+            "-i", source_path,
+            "-t", str(duration),
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-movflags", "+faststart",
+            str(dest),
+        ]
+    )
+    return str(dest)
+
+
 def probe_video(video_path: str) -> VideoAsset:
     path = Path(video_path).expanduser().resolve()
     if not path.exists():
@@ -182,6 +247,9 @@ def parse_edit_instructions(instructions: str) -> list[EditOperation]:
 
     if any(phrase in lowered for phrase in ("detect scenes", "scene detection", "auto-segment", "auto segment")):
         operations.append(EditOperation("detect_scenes"))
+
+    if any(phrase in lowered for phrase in ("make clips", "extract clips", "create clips", "split clips")):
+        operations.append(EditOperation("extract_clips"))
 
     effect_keywords = {
         "black and white": "grayscale",
@@ -345,6 +413,7 @@ class VideoEditingAgent:
             "mix_audio": self.mix_audio,
             "sync_audio_video": self.sync_audio_video,
             "set_export_path": self.set_export_path,
+            "extract_clips": self.extract_clips_from_scenes,
         }
 
     def load_video(self, video_path: str, instructions: str = "") -> VideoProject:
@@ -421,6 +490,37 @@ class VideoEditingAgent:
 
     def set_export_path(self, project: VideoProject, output_path: str) -> None:
         project.export_path = output_path
+
+    def load_from_url(self, url: str, instructions: str = "", download_dir: str | None = None) -> VideoProject:
+        """Download a video from *url* then load it as a :class:`VideoProject`."""
+        local_path = download_video(url, output_dir=download_dir)
+        return self.load_video(local_path, instructions)
+
+    def extract_clips_from_scenes(self, project: VideoProject, output_dir: str | None = None) -> list[str]:
+        """Extract each scene in *project* as a separate clip file.
+
+        Returns a list of output file paths.
+        """
+        if not project.scenes:
+            project.scenes = detect_scene_segments(project.source)
+
+        dest_dir = Path(output_dir).expanduser().resolve() if output_dir else Path(project.source.path).parent / "clips"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        source_stem = Path(project.source.path).stem
+        clip_paths: list[str] = []
+        for scene in project.scenes:
+            clip_filename = f"{source_stem}_{scene.label}.mp4"
+            clip_path = extract_clip(
+                project.source.path,
+                scene.start_seconds,
+                scene.end_seconds,
+                str(dest_dir / clip_filename),
+            )
+            clip_paths.append(clip_path)
+            LOGGER.info("Extracted clip: %s", clip_path)
+
+        return clip_paths
 
     def export_video(self, project: VideoProject, output_path: str | None = None) -> str:
         resolved_output_path = Path(output_path or project.export_path or "edited_output.mp4").expanduser().resolve()
