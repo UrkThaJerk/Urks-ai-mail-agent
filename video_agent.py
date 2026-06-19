@@ -12,7 +12,8 @@ import yt_dlp
 
 
 SUPPORTED_VIDEO_FORMATS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
-ECLIPSE_PROTOTYPE_REFERENCE = "eclipse.gg"
+EKLIPSE_PROTOTYPE_REFERENCE = "eklipse.gg"
+KEY_MOMENT_MIN_DURATION_SECONDS = 5  # scenes at least this long are considered key moments
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 LOGGER = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class TimelineSegment:
     label: str
     transition: str | None = None
     key_moment: bool = False
+    excitement_score: float = 0.0  # 0–1 audio-energy score; higher = more exciting
 
 
 @dataclass
@@ -66,7 +68,7 @@ class VideoProject:
 
     def summary(self) -> dict[str, Any]:
         return {
-            "prototype_reference": ECLIPSE_PROTOTYPE_REFERENCE,
+            "prototype_reference": EKLIPSE_PROTOTYPE_REFERENCE,
             "source": asdict(self.source),
             "instructions": self.instructions,
             "scene_count": len(self.scenes),
@@ -145,10 +147,29 @@ def download_video(
     return str(path)
 
 
-def extract_clip(source_path: str, start_seconds: float, end_seconds: float, output_path: str) -> str:
+def extract_clip(
+    source_path: str,
+    start_seconds: float,
+    end_seconds: float,
+    output_path: str,
+    video_filters: list[str] | None = None,
+) -> str:
     """Extract a time-bounded clip from *source_path* into *output_path* using ffmpeg.
 
+    Parameters
+    ----------
+    video_filters:
+        Optional list of ffmpeg video filter strings (joined with commas and
+        passed via ``-vf``).  Use this to apply transforms such as vertical
+        reframing during extraction.
+
     Returns the output path on success.
+
+    Raises
+    ------
+    VideoEditingError
+        If ``end_seconds`` is not greater than ``start_seconds``, or if ffmpeg
+        fails.
     """
     if end_seconds <= start_seconds:
         raise VideoEditingError(
@@ -159,19 +180,16 @@ def extract_clip(source_path: str, start_seconds: float, end_seconds: float, out
     dest = Path(output_path).expanduser().resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    _run_media_command(
-        [
-            "ffmpeg",
-            "-y",
-            "-ss", str(start_seconds),
-            "-i", source_path,
-            "-t", str(duration),
-            "-c:v", "libx264",
-            "-c:a", "aac",
-            "-movflags", "+faststart",
-            str(dest),
-        ]
-    )
+    command = [
+        "ffmpeg", "-y",
+        "-ss", str(start_seconds),
+        "-i", source_path,
+        "-t", str(duration),
+    ]
+    if video_filters:
+        command.extend(["-vf", ",".join(video_filters)])
+    command.extend(["-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart", str(dest)])
+    _run_media_command(command)
     return str(dest)
 
 
@@ -260,11 +278,76 @@ def detect_scene_segments(video: VideoAsset, threshold: float = 0.35) -> list[Ti
                 end_seconds=end_seconds,
                 label=f"scene_{index + 1}",
                 transition="cut" if index else None,
-                key_moment=index == 0 or index == len(boundaries) - 2 or (end_seconds - start_seconds) >= 5,
+                key_moment=index == 0 or index == len(boundaries) - 2 or (end_seconds - start_seconds) >= KEY_MOMENT_MIN_DURATION_SECONDS,
             )
         )
 
     return scenes or [TimelineSegment(start_seconds=0.0, end_seconds=video.duration_seconds, label="scene_1", key_moment=True)]
+
+
+def score_scene_audio_energy(video_path: str, start_seconds: float, end_seconds: float) -> float:
+    """Return a 0–1 excitement score for a time segment based on audio RMS energy.
+
+    Uses ffmpeg's ``astats`` filter to measure mean RMS dB level over the
+    segment.  Higher values indicate louder, more energetic audio — a reliable
+    proxy for exciting gaming moments (kills, explosions, crowd reactions).
+
+    Returns 0.0 when audio analysis fails or the segment has no duration.
+    """
+    duration = end_seconds - start_seconds
+    if duration <= 0:
+        return 0.0
+    try:
+        result = _run_media_command([
+            "ffmpeg", "-hide_banner",
+            "-ss", str(start_seconds),
+            "-i", video_path,
+            "-t", str(duration),
+            "-filter:a", "astats=metadata=1:reset=1",
+            "-f", "null", "-",
+        ])
+        raw = result.stderr or result.stdout
+    except VideoEditingError:
+        return 0.0
+
+    rms_values: list[float] = []
+    for match in re.finditer(r"RMS level dB:\s*(-?\d+(?:\.\d+)?)", raw):
+        rms_values.append(float(match.group(1)))
+    if not rms_values:
+        return 0.0
+
+    # Map mean dB from [-60, 0] → [0, 1]; louder = higher score
+    mean_db = sum(rms_values) / len(rms_values)
+    return round(max(0.0, min(1.0, (mean_db + 60.0) / 60.0)), 4)
+
+
+def rank_scenes_by_excitement(video: VideoAsset, scenes: list[TimelineSegment]) -> list[TimelineSegment]:
+    """Score every scene by audio energy and return them sorted by excitement descending.
+
+    Updates ``excitement_score`` on each scene in-place.  Scenes at or above the
+    median score are promoted to ``key_moment=True``.
+    """
+    for scene in scenes:
+        scene.excitement_score = score_scene_audio_energy(
+            video.path, scene.start_seconds, scene.end_seconds
+        )
+    if scenes:
+        scores = sorted(s.excitement_score for s in scenes)
+        median = scores[len(scores) // 2]
+        for scene in scenes:
+            if scene.excitement_score >= median:
+                scene.key_moment = True
+    return sorted(scenes, key=lambda s: s.excitement_score, reverse=True)
+
+
+def filter_top_clips(scenes: list[TimelineSegment], n: int) -> list[TimelineSegment]:
+    """Return the top *n* scenes ordered by excitement score descending.
+
+    Scenes with no excitement score (0.0) are included last.
+    """
+    if n <= 0:
+        return []
+    return sorted(scenes, key=lambda s: s.excitement_score, reverse=True)[:n]
 
 
 def parse_edit_instructions(instructions: str) -> list[EditOperation]:
@@ -276,6 +359,28 @@ def parse_edit_instructions(instructions: str) -> list[EditOperation]:
 
     if any(phrase in lowered for phrase in ("make clips", "extract clips", "create clips", "split clips")):
         operations.append(EditOperation("extract_clips"))
+
+    # Highlight ranking (Eklipse / Wayin style) — score scenes by audio energy
+    if any(phrase in lowered for phrase in (
+        "highlight", "best moments", "best clips", "rank clips",
+        "rank scenes", "exciting moments", "top moments",
+    )):
+        operations.append(EditOperation("rank_scenes"))
+
+    # Top-N clip selection — "top 5 clips", "best 3 highlights", etc.
+    top_n_match = re.search(r"\b(?:top|best)\s+(\d+)\s+(?:clips?|highlights?|moments?)\b", lowered)
+    if top_n_match:
+        n = int(top_n_match.group(1))
+        operations.append(EditOperation("select_top_clips", {"n": n}))
+    elif any(phrase in lowered for phrase in ("top clips", "best highlights", "highlight reel")):
+        operations.append(EditOperation("select_top_clips", {"n": 5}))
+
+    # Vertical reframe for TikTok / YouTube Shorts / Instagram Reels
+    if any(phrase in lowered for phrase in (
+        "vertical", "portrait", "9:16", "tiktok format", "tiktok",
+        "shorts format", "youtube shorts", "reels", "reframe",
+    )):
+        operations.append(EditOperation("reframe_vertical"))
 
     effect_keywords = {
         "black and white": "grayscale",
@@ -413,6 +518,9 @@ def build_ffmpeg_command(project: VideoProject, output_path: str) -> list[str]:
             )
         elif operation.operation == "sync_audio_video":
             audio_filters.append("aresample=async=1:first_pts=0")
+        elif operation.operation == "reframe_vertical":
+            # Smart center-crop to 9:16 portrait for TikTok / YouTube Shorts / Reels
+            video_filters.append("crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920")
         elif operation.operation == "mix_audio":
             if operation.parameters.get("mode") == "equalize":
                 audio_filters.append("highpass=f=120,lowpass=f=8000")
@@ -432,6 +540,9 @@ class VideoEditingAgent:
     def __init__(self) -> None:
         self.tools: dict[str, Callable[..., Any]] = {
             "detect_scenes": self.detect_scenes,
+            "rank_scenes": self.rank_scenes,
+            "select_top_clips": self.select_top_clips,
+            "reframe_vertical": self.reframe_vertical,
             "apply_effect": self.apply_effect,
             "apply_transition": self.apply_transition,
             "add_text_overlay": self.add_text_overlay,
@@ -460,6 +571,25 @@ class VideoEditingAgent:
     def detect_scenes(self, project: VideoProject) -> list[TimelineSegment]:
         project.scenes = detect_scene_segments(project.source)
         return project.scenes
+
+    def rank_scenes(self, project: VideoProject) -> list[TimelineSegment]:
+        """Score scenes by audio energy and sort by excitement (Eklipse/Wayin style)."""
+        if not project.scenes:
+            self.detect_scenes(project)
+        project.scenes = rank_scenes_by_excitement(project.source, project.scenes)
+        return project.scenes
+
+    def select_top_clips(self, project: VideoProject, n: int = 5) -> list[TimelineSegment]:
+        """Reduce scene list to the top *n* most exciting scenes."""
+        if not project.scenes:
+            self.rank_scenes(project)
+        project.scenes = filter_top_clips(project.scenes, n)
+        return project.scenes
+
+    def reframe_vertical(self, project: VideoProject) -> None:
+        """Append a vertical-reframe (9:16 center crop) operation for TikTok/Shorts/Reels."""
+        if EditOperation("reframe_vertical") not in project.operations:
+            project.operations.append(EditOperation("reframe_vertical"))
 
     def apply_effect(self, project: VideoProject, name: str) -> None:
         project.operations.append(EditOperation("apply_effect", {"name": name}))
@@ -538,6 +668,9 @@ class VideoEditingAgent:
     def extract_clips_from_scenes(self, project: VideoProject, output_dir: str | None = None) -> list[str]:
         """Extract each scene in *project* as a separate clip file.
 
+        When the project includes a ``reframe_vertical`` operation, each clip is
+        center-cropped to 9:16 and scaled to 1080×1920 (TikTok/Shorts/Reels).
+
         Returns a list of output file paths.
         """
         if not project.scenes:
@@ -545,6 +678,12 @@ class VideoEditingAgent:
 
         dest_dir = Path(output_dir).expanduser().resolve() if output_dir else Path(project.source.path).parent / "clips"
         dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # Collect video filters from project operations (e.g. reframe_vertical)
+        video_filters: list[str] = []
+        for op in project.operations:
+            if op.operation == "reframe_vertical":
+                video_filters.append("crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920")
 
         source_stem = Path(project.source.path).stem
         clip_paths: list[str] = []
@@ -555,6 +694,7 @@ class VideoEditingAgent:
                 scene.start_seconds,
                 scene.end_seconds,
                 str(dest_dir / clip_filename),
+                video_filters=video_filters or None,
             )
             clip_paths.append(clip_path)
             LOGGER.info("Extracted clip: %s", clip_path)
