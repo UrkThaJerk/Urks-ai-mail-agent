@@ -1,6 +1,33 @@
 # Urks-ai-mail-agent
 
-Supports the original mail workflow, a prototype video editing agent, a social media publishing agent, and a collaborative four-agent mode where specialists work independently before sharing feedback and learnings.
+Supports the original mail workflow, a prototype video editing agent, a social media publishing agent, a collaborative four-agent mode, and a **web UI** so you can run any agent from your browser.
+
+## Web UI
+
+Start the Flask server and open the dashboard in your browser:
+
+```bash
+python web_app.py
+```
+
+Then navigate to <http://localhost:5000>.
+
+You can also start it through the main entrypoint:
+
+```bash
+URKS_AGENT_TYPE=web python agent.py
+```
+
+Optional environment variables:
+
+| Variable    | Default | Description |
+|-------------|---------|-------------|
+| `WEB_PORT`  | `5000`  | Port to listen on |
+| `WEB_DEBUG` | `false` | Enable Flask debug/reload mode |
+
+> **Note:** Gmail OAuth and YouTube OAuth flows require `credentials.json` and
+> `token.json` to already exist on disk before using the mail or social agents
+> through the web UI (same as the CLI).
 
 ## Mail agent
 

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urks AI Agent Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.25rem;
+      color: #f8fafc;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 2.5rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #1e2330;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #f1f5f9;
+    }
+
+    .card h2 .icon { font-size: 1.4rem; }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 0.3rem;
+    }
+
+    input[type="text"], textarea {
+      width: 100%;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      color: #e2e8f0;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+      resize: vertical;
+    }
+
+    input[type="text"]:focus, textarea:focus {
+      border-color: #6366f1;
+    }
+
+    button {
+      align-self: flex-start;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.55rem 1.25rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button:hover { background: #4f46e5; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .output {
+      background: #0a0d14;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-size: 0.78rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      color: #a3e635;
+      display: none;
+    }
+
+    .output.error { color: #f87171; }
+    .output.visible { display: block; }
+
+    .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #6366f1;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .spinner.visible { display: inline-block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>⚡ Urks AI Agent Dashboard</h1>
+  <p class="subtitle">Run any agent directly from your browser</p>
+
+  <div class="grid">
+
+    <!-- Mail Agent -->
+    <div class="card">
+      <h2><span class="icon">📬</span> Mail Agent</h2>
+      <p style="font-size:0.82rem;color:#94a3b8;">
+        Reads unread Gmail messages and drafts AI replies.
+        Requires <code>credentials.json</code> and <code>token.json</code> on disk.
+      </p>
+      <button onclick="runAgent('mail', {}, this)">
+        Run Mail Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-mail"></pre>
+    </div>
+
+    <!-- Video Agent -->
+    <div class="card">
+      <h2><span class="icon">🎬</span> Video Agent</h2>
+      <div>
+        <label for="video-path">Video Input Path</label>
+        <input type="text" id="video-path" placeholder="/absolute/path/to/input.mp4" />
+      </div>
+      <div>
+        <label for="video-instructions">Edit Instructions</label>
+        <textarea id="video-instructions" rows="3"
+          placeholder='detect scenes, apply sepia, add text "Intro", export to /tmp/output.mp4'></textarea>
+      </div>
+      <div>
+        <label for="video-output">Output Path (optional)</label>
+        <input type="text" id="video-output" placeholder="/absolute/path/to/output.mp4" />
+      </div>
+      <button onclick="runAgent('video', videoPayload(), this)">
+        Run Video Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-video"></pre>
+    </div>
+
+    <!-- Social Agent -->
+    <div class="card">
+      <h2><span class="icon">📣</span> Social Agent</h2>
+      <div>
+        <label for="social-clips">Clip Paths (JSON array)</label>
+        <textarea id="social-clips" rows="3"
+          placeholder='["/tmp/clips/clip1.mp4", "/tmp/clips/clip2.mp4"]'></textarea>
+      </div>
+      <div>
+        <label for="social-topic">Topic / Niche</label>
+        <input type="text" id="social-topic" placeholder="gaming highlights" />
+      </div>
+      <div>
+        <label for="social-platforms">Platforms (comma-separated)</label>
+        <input type="text" id="social-platforms" placeholder="youtube,twitter" />
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <input type="checkbox" id="social-upload-now" />
+        <label for="social-upload-now" style="margin:0;">Upload immediately</label>
+      </div>
+      <button onclick="runAgent('social', socialPayload(), this)">
+        Run Social Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-social"></pre>
+    </div>
+
+    <!-- Collective Agent -->
+    <div class="card">
+      <h2><span class="icon">🤝</span> Collective Agent</h2>
+      <div>
+        <label for="collective-objective">Objective</label>
+        <textarea id="collective-objective" rows="3"
+          placeholder="Improve the mail and video workflows together"></textarea>
+      </div>
+      <div>
+        <label for="collective-context">Context (optional)</label>
+        <textarea id="collective-context" rows="2"
+          placeholder="Keep agents separate, share feedback after first pass."></textarea>
+      </div>
+      <button onclick="runAgent('collective', collectivePayload(), this)">
+        Run Collective Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-collective"></pre>
+    </div>
+
+  </div>
+
+  <script>
+    function videoPayload() {
+      return {
+        video_input_path: document.getElementById('video-path').value.trim(),
+        video_edit_instructions: document.getElementById('video-instructions').value.trim(),
+        video_output_path: document.getElementById('video-output').value.trim(),
+      };
+    }
+
+    function socialPayload() {
+      return {
+        social_clip_paths: document.getElementById('social-clips').value.trim(),
+        social_topic: document.getElementById('social-topic').value.trim(),
+        social_platforms: document.getElementById('social-platforms').value.trim(),
+        social_upload_now: document.getElementById('social-upload-now').checked ? 'true' : 'false',
+      };
+    }
+
+    function collectivePayload() {
+      return {
+        collective_objective: document.getElementById('collective-objective').value.trim(),
+        collective_context: document.getElementById('collective-context').value.trim(),
+      };
+    }
+
+    async function runAgent(name, payload, btn) {
+      const out = document.getElementById('output-' + name);
+      const spinner = btn.querySelector('.spinner');
+
+      btn.disabled = true;
+      spinner.classList.add('visible');
+      out.classList.remove('error', 'visible');
+      out.textContent = '';
+
+      try {
+        const resp = await fetch('/run/' + name, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        out.textContent = data.output || '(no output)';
+        if (!resp.ok) out.classList.add('error');
+      } catch (err) {
+        out.textContent = 'Request failed: ' + err.message;
+        out.classList.add('error');
+      } finally {
+        btn.disabled = false;
+        spinner.classList.remove('visible');
+        out.classList.add('visible');
+      }
+    }
+  </script>
+</body>
+</html>

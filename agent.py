@@ -20,6 +20,12 @@ def run_agent():
     if agent_type == "social":
         process_social_jobs()
         return
+    if agent_type == "web":
+        from web_app import app
+        port = int(os.getenv("WEB_PORT", "5000"))
+        debug = os.getenv("WEB_DEBUG", "false").lower() in ("1", "true", "yes")
+        app.run(host="0.0.0.0", port=port, debug=debug)
+        return
     process_emails()
 
 
