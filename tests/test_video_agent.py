@@ -1,3 +1,4 @@
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -146,6 +147,21 @@ class VideoAgentTests(unittest.TestCase):
         )
         mock_load.assert_called_once_with("/tmp/2800009020.mp4", "make clips")
         self.assertIs(fake_project, result)
+
+    @patch("video_agent.yt_dlp.YoutubeDL")
+    def test_download_video_raises_on_dns_error(self, mock_ydl_cls):
+        mock_ydl_cls.return_value.__enter__.return_value.extract_info.side_effect = socket.gaierror(
+            -5, "No address associated with hostname"
+        )
+
+        from video_agent import VideoEditingError, download_video
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(VideoEditingError) as ctx:
+                download_video("https://www.twitch.tv/videos/2800009020", output_dir=tmp)
+
+        self.assertIn("DNS resolution failed", str(ctx.exception))
+        self.assertIn("Check your network connection", str(ctx.exception))
 
 
 if __name__ == "__main__":

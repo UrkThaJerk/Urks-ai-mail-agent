@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import socket
 import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -105,6 +106,11 @@ def download_video(url: str, output_dir: str | None = None) -> str:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             downloaded_path = ydl.prepare_filename(info)
+    except socket.gaierror as exc:
+        raise VideoEditingError(
+            f"DNS resolution failed for '{url}': {exc}. "
+            "Check your network connection and that the hostname is reachable."
+        ) from exc
     except Exception as exc:
         raise VideoEditingError(f"Failed to download video from '{url}': {exc}") from exc
 
