@@ -30,9 +30,11 @@ class CollectiveAgentTests(unittest.TestCase):
             [
                 "mail independent",
                 "video independent",
+                "social independent",
                 "strategy independent",
                 "mail learned from peers",
                 "video learned from peers",
+                "social learned from peers",
                 "strategy learned from peers",
                 "collective summary",
             ]
@@ -40,15 +42,15 @@ class CollectiveAgentTests(unittest.TestCase):
 
         result = CollectiveLearningAgent(client=client).run_collective(
             "Improve the workflows",
-            "Keep the three agents separate before they compare notes.",
+            "Keep the four agents separate before they compare notes.",
         )
 
         self.assertEqual("Improve the workflows", result["objective"])
-        self.assertEqual(3, len(result["agents"]))
+        self.assertEqual(4, len(result["agents"]))
         self.assertEqual("mail independent", result["agents"][0]["independent_work"])
-        self.assertEqual("strategy learned from peers", result["agents"][2]["peer_learning"])
+        self.assertEqual("strategy learned from peers", result["agents"][3]["peer_learning"])
         self.assertEqual("collective summary", result["collective_summary"])
-        self.assertEqual(7, len(client.chat.completions.calls))
+        self.assertEqual(9, len(client.chat.completions.calls))
 
     @patch("collective_agent.get_openai_client", return_value=object())
     @patch("collective_agent.CollectiveLearningAgent.run_collective")

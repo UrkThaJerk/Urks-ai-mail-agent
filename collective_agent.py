@@ -37,7 +37,7 @@ class CollectiveLearningAgent:
                 name="mail_specialist",
                 specialty="email triage, drafting, and inbox automation",
                 system_prompt=(
-                    "You are a mail specialist in a 3-agent collective. "
+                    "You are a mail specialist in a 4-agent collective. "
                     "Work independently first, then help the other agents improve. "
                     "Be concrete, concise, and operational."
                 ),
@@ -46,7 +46,16 @@ class CollectiveLearningAgent:
                 name="video_specialist",
                 specialty="video editing, scene analysis, and media export workflows",
                 system_prompt=(
-                    "You are a video specialist in a 3-agent collective. "
+                    "You are a video specialist in a 4-agent collective. "
+                    "Work independently first, then help the other agents improve. "
+                    "Be concrete, concise, and operational."
+                ),
+            ),
+            SpecialistAgent(
+                name="social_specialist",
+                specialty="social media publishing, trending schedules, and platform-specific content strategy",
+                system_prompt=(
+                    "You are a social media specialist in a 4-agent collective. "
                     "Work independently first, then help the other agents improve. "
                     "Be concrete, concise, and operational."
                 ),
@@ -55,7 +64,7 @@ class CollectiveLearningAgent:
                 name="strategy_specialist",
                 specialty="cross-agent orchestration, feedback loops, and continuous improvement",
                 system_prompt=(
-                    "You are a strategy specialist in a 3-agent collective. "
+                    "You are a strategy specialist in a 4-agent collective. "
                     "Work independently first, then help the other agents improve. "
                     "Be concrete, concise, and operational."
                 ),
