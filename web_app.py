@@ -126,8 +126,8 @@ def _capture(func, env_overrides: dict) -> tuple[str, int]:
             func()
         return buf.getvalue() or "Done.", 200
     except Exception as exc:
-        LOGGER.exception("Agent error")
-        return f"Error: {type(exc).__name__}: {exc}", 500
+        LOGGER.exception("Agent error: %s: %s", type(exc).__name__, exc)
+        return "An error occurred while running the agent. Check the server log for details.", 500
     finally:
         for k, v in original.items():
             if v is None:
