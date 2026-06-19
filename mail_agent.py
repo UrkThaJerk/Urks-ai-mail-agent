@@ -1,16 +1,19 @@
 import os
-import json
 from dotenv import load_dotenv
 from openai import OpenAI
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Step A: Authenticate Gmail API
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+
+
+def get_openai_client():
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def get_gmail_service():
     creds = None
@@ -29,6 +32,7 @@ def get_gmail_service():
 # Step B: Let AI process and draft responses
 
 def process_emails():
+    client = get_openai_client()
     service = get_gmail_service()
 
     results = service.users().messages().list(userId='me', q='is:unread').execute()

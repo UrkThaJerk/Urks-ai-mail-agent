@@ -4,3 +4,6 @@ openai
 google-api-python-client
 google-auth-oauthlib
 python-dotenv
+yt-dlp
+tweepy
+flask

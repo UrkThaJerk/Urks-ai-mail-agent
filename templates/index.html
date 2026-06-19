@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urks AI Agent Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.25rem;
+      color: #f8fafc;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 2.5rem;
+    }
+
+    /* ---- layout ---- */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto 2.5rem;
+    }
+
+    .card {
+      background: #1e2330;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #f1f5f9;
+    }
+
+    .card h2 .icon { font-size: 1.4rem; }
+
+    /* ---- file manager panel (full width) ---- */
+    .file-manager {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .file-manager h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      color: #f1f5f9;
+    }
+
+    .fm-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 640px) { .fm-grid { grid-template-columns: 1fr; } }
+
+    /* ---- drop zone ---- */
+    .drop-zone {
+      border: 2px dashed #374151;
+      border-radius: 8px;
+      padding: 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      color: #94a3b8;
+      font-size: 0.875rem;
+    }
+
+    .drop-zone.drag-over {
+      border-color: #6366f1;
+      background: rgba(99,102,241,0.07);
+    }
+
+    .drop-zone input[type="file"] { display: none; }
+
+    /* ---- file table ---- */
+    .file-table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th {
+      text-align: left;
+      color: #64748b;
+      padding: 0.4rem 0.6rem;
+      border-bottom: 1px solid #2d3748;
+    }
+
+    td {
+      padding: 0.45rem 0.6rem;
+      border-bottom: 1px solid #1a2133;
+      word-break: break-all;
+    }
+
+    td a {
+      color: #818cf8;
+      text-decoration: none;
+    }
+
+    td a:hover { text-decoration: underline; }
+
+    .use-btn {
+      background: #1e3a5f;
+      color: #93c5fd;
+      border: 1px solid #2563eb44;
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .use-btn:hover { background: #1e4a8f; }
+
+    .empty-note { color: #4b5563; font-size: 0.82rem; padding: 0.5rem 0; }
+
+    /* ---- labels / inputs ---- */
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 0.3rem;
+    }
+
+    input[type="text"], textarea {
+      width: 100%;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      color: #e2e8f0;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+      resize: vertical;
+    }
+
+    input[type="text"]:focus, textarea:focus { border-color: #6366f1; }
+
+    /* ---- buttons ---- */
+    button {
+      align-self: flex-start;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.55rem 1.25rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button:hover { background: #4f46e5; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---- output boxes ---- */
+    .output {
+      background: #0a0d14;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-size: 0.78rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      color: #a3e635;
+      display: none;
+    }
+
+    .output.error { color: #f87171; }
+    .output.visible { display: block; }
+
+    .download-link {
+      font-size: 0.82rem;
+      display: none;
+    }
+
+    .download-link.visible { display: block; }
+    .download-link a { color: #34d399; }
+
+    /* ---- spinner ---- */
+    .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #6366f1;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .spinner.visible { display: inline-block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>⚡ Urks AI Agent Dashboard</h1>
+  <p class="subtitle">Run any agent directly from your browser</p>
+
+  <!-- ================================================================
+       Agent cards
+  ================================================================ -->
+  <div class="grid">
+
+    <!-- Mail Agent -->
+    <div class="card">
+      <h2><span class="icon">📬</span> Mail Agent</h2>
+      <p style="font-size:0.82rem;color:#94a3b8;">
+        Reads unread Gmail messages and drafts AI replies.
+        Requires <code>credentials.json</code> and <code>token.json</code> on disk.
+      </p>
+      <button onclick="runAgent('mail', {}, this)">
+        Run Mail Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-mail"></pre>
+    </div>
+
+    <!-- Video Agent -->
+    <div class="card">
+      <h2><span class="icon">🎬</span> Video Agent</h2>
+      <div>
+        <label>Upload Video (or fill path below)</label>
+        <div class="drop-zone" id="dz-video" onclick="document.getElementById('upload-video').click()">
+          <input type="file" id="upload-video" accept=".mp4,.mov,.webm,.mkv,.m4v,.avi,.flv"
+                 onchange="handleVideoUpload(this)" />
+          Drop a video file here or <strong>click to browse</strong>
+        </div>
+      </div>
+      <div>
+        <label for="video-path">Video Input Path</label>
+        <input type="text" id="video-path" placeholder="/absolute/path/to/input.mp4" />
+      </div>
+      <div>
+        <label for="video-instructions">Edit Instructions</label>
+        <textarea id="video-instructions" rows="3"
+          placeholder='detect scenes, apply sepia, add text "Intro", export to /tmp/output.mp4'></textarea>
+      </div>
+      <div>
+        <label for="video-output">Output Path (optional — defaults to outputs/edited_output.mp4)</label>
+        <input type="text" id="video-output" placeholder="outputs/edited_output.mp4" />
+      </div>
+      <button onclick="runAgent('video', videoPayload(), this, 'video')">
+        Run Video Agent <span class="spinner"></span>
+      </button>
+      <div class="download-link" id="dl-video"></div>
+      <pre class="output" id="output-video"></pre>
+    </div>
+
+    <!-- Social Agent -->
+    <div class="card">
+      <h2><span class="icon">📣</span> Social Agent</h2>
+      <div>
+        <label>Upload Clips (multi-select, or fill paths below)</label>
+        <div class="drop-zone" id="dz-social" onclick="document.getElementById('upload-social').click()">
+          <input type="file" id="upload-social" accept=".mp4,.mov,.webm,.mkv,.m4v,.avi,.flv"
+                 multiple onchange="handleSocialUpload(this)" />
+          Drop clip files here or <strong>click to browse</strong>
+        </div>
+      </div>
+      <div>
+        <label for="social-clips">Clip Paths (JSON array)</label>
+        <textarea id="social-clips" rows="3"
+          placeholder='["/tmp/clips/clip1.mp4", "/tmp/clips/clip2.mp4"]'></textarea>
+      </div>
+      <div>
+        <label for="social-topic">Topic / Niche</label>
+        <input type="text" id="social-topic" placeholder="gaming highlights" />
+      </div>
+      <div>
+        <label for="social-platforms">Platforms (comma-separated)</label>
+        <input type="text" id="social-platforms" placeholder="youtube,twitter" />
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <input type="checkbox" id="social-upload-now" />
+        <label for="social-upload-now" style="margin:0;">Upload immediately</label>
+      </div>
+      <button onclick="runAgent('social', socialPayload(), this)">
+        Run Social Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-social"></pre>
+    </div>
+
+    <!-- Collective Agent -->
+    <div class="card">
+      <h2><span class="icon">🤝</span> Collective Agent</h2>
+      <div>
+        <label for="collective-objective">Objective</label>
+        <textarea id="collective-objective" rows="3"
+          placeholder="Improve the mail and video workflows together"></textarea>
+      </div>
+      <div>
+        <label for="collective-context">Context (optional)</label>
+        <textarea id="collective-context" rows="2"
+          placeholder="Keep agents separate, share feedback after first pass."></textarea>
+      </div>
+      <button onclick="runAgent('collective', collectivePayload(), this)">
+        Run Collective Agent <span class="spinner"></span>
+      </button>
+      <pre class="output" id="output-collective"></pre>
+    </div>
+
+  </div>
+
+  <!-- ================================================================
+       File Manager
+  ================================================================ -->
+  <section class="file-manager card" style="max-width:1100px;margin:0 auto 2.5rem;">
+    <h2>📁 File Manager</h2>
+    <div class="fm-grid">
+
+      <!-- Upload panel -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <label>Upload files</label>
+          <div class="drop-zone" id="dz-manager"
+               onclick="document.getElementById('upload-manager').click()"
+               ondragover="dzDragOver(event,'dz-manager')"
+               ondragleave="dzDragLeave('dz-manager')"
+               ondrop="dzDrop(event,'dz-manager',uploadManagerFiles)">
+            <input type="file" id="upload-manager"
+                   accept=".mp4,.mov,.webm,.mkv,.m4v,.avi,.flv"
+                   multiple onchange="uploadManagerFiles(this.files)" />
+            Drop files here or <strong>click to browse</strong>
+          </div>
+        </div>
+        <pre class="output visible" id="upload-status"
+             style="min-height:2.5rem;color:#94a3b8;">No files uploaded yet.</pre>
+      </div>
+
+      <!-- File list panel -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <label style="margin:0;">Uploaded &amp; processed files</label>
+          <button style="padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="refreshFileList()">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <div>
+          <p style="font-size:0.75rem;color:#6b7280;margin-bottom:0.4rem;">📤 Uploads</p>
+          <div class="file-table-wrap">
+            <table id="tbl-uploads">
+              <thead><tr><th>Name</th><th>Size</th><th></th><th></th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty-note">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size:0.75rem;color:#6b7280;margin-bottom:0.4rem;">📥 Outputs</p>
+          <div class="file-table-wrap">
+            <table id="tbl-outputs">
+              <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
+              <tbody><tr><td colspan="3" class="empty-note">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       JavaScript
+  ================================================================ -->
+  <script>
+    // ---- drag-and-drop helpers ----
+    function dzDragOver(e, id) {
+      e.preventDefault();
+      document.getElementById(id).classList.add('drag-over');
+    }
+    function dzDragLeave(id) {
+      document.getElementById(id).classList.remove('drag-over');
+    }
+    function dzDrop(e, id, handler) {
+      e.preventDefault();
+      document.getElementById(id).classList.remove('drag-over');
+      handler(e.dataTransfer.files);
+    }
+
+    // ---- video agent drop zone ----
+    document.getElementById('dz-video').addEventListener('dragover', e => dzDragOver(e, 'dz-video'));
+    document.getElementById('dz-video').addEventListener('dragleave', () => dzDragLeave('dz-video'));
+    document.getElementById('dz-video').addEventListener('drop', e => {
+      e.preventDefault();
+      dzDragLeave('dz-video');
+      document.getElementById('upload-video').files = e.dataTransfer.files;
+      handleVideoUpload(document.getElementById('upload-video'));
+    });
+
+    // ---- social agent drop zone ----
+    document.getElementById('dz-social').addEventListener('dragover', e => dzDragOver(e, 'dz-social'));
+    document.getElementById('dz-social').addEventListener('dragleave', () => dzDragLeave('dz-social'));
+    document.getElementById('dz-social').addEventListener('drop', e => {
+      e.preventDefault();
+      dzDragLeave('dz-social');
+      document.getElementById('upload-social').files = e.dataTransfer.files;
+      handleSocialUpload(document.getElementById('upload-social'));
+    });
+
+    // ---- upload a FileList and return saved file entries ----
+    async function uploadFiles(fileList) {
+      const fd = new FormData();
+      for (const f of fileList) fd.append('file', f);
+      const resp = await fetch('/upload', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ description: resp.statusText }));
+        throw new Error(err.description || resp.statusText);
+      }
+      const data = await resp.json();
+      return data.files; // [{name, path, size}, ...]
+    }
+
+    // ---- video card upload ----
+    async function handleVideoUpload(input) {
+      if (!input.files.length) return;
+      const dz = document.getElementById('dz-video');
+      dz.textContent = 'Uploading…';
+      try {
+        const files = await uploadFiles(input.files);
+        document.getElementById('video-path').value = files[0].path;
+        dz.textContent = `✔ ${files[0].name} uploaded`;
+        refreshFileList();
+      } catch (err) {
+        dz.textContent = `✖ Upload failed: ${err.message}`;
+      }
+    }
+
+    // ---- social card upload (multi) ----
+    async function handleSocialUpload(input) {
+      if (!input.files.length) return;
+      const dz = document.getElementById('dz-social');
+      dz.textContent = 'Uploading…';
+      try {
+        const files = await uploadFiles(input.files);
+        const paths = files.map(f => f.path);
+        document.getElementById('social-clips').value = JSON.stringify(paths, null, 2);
+        dz.textContent = `✔ ${files.length} file(s) uploaded`;
+        refreshFileList();
+      } catch (err) {
+        dz.textContent = `✖ Upload failed: ${err.message}`;
+      }
+    }
+
+    // ---- file manager upload ----
+    async function uploadManagerFiles(fileList) {
+      if (!fileList.length) return;
+      const status = document.getElementById('upload-status');
+      status.className = 'output visible';
+      status.style.color = '#94a3b8';
+      status.textContent = `Uploading ${fileList.length} file(s)…`;
+      try {
+        const files = await uploadFiles(fileList);
+        status.textContent = files.map(f => `✔ ${f.name}  (${fmtSize(f.size)})`).join('\n');
+        refreshFileList();
+      } catch (err) {
+        status.style.color = '#f87171';
+        status.textContent = `✖ Upload failed: ${err.message}`;
+      }
+    }
+
+    // ---- refresh file listing ----
+    async function refreshFileList() {
+      try {
+        const resp = await fetch('/files');
+        const data = await resp.json();
+        renderTable('tbl-uploads', data.uploads, true);
+        renderTable('tbl-outputs', data.outputs, false);
+      } catch (_) { /* silently ignore */ }
+    }
+
+    function fmtSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function renderTable(tableId, files, showUseBtn) {
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      if (!files.length) {
+        tbody.innerHTML = `<tr><td colspan="${showUseBtn ? 4 : 3}" class="empty-note">No files yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = files.map(f => {
+        const dl = `<a href="/download/${encodeURIComponent(f.name)}" download>⬇ Download</a>`;
+        const use = showUseBtn
+          ? `<td><button class="use-btn" onclick="useFile('${f.path.replace(/'/g,"\\'")}')">Use</button></td>`
+          : '';
+        return `<tr><td>${f.name}</td><td>${fmtSize(f.size)}</td><td>${dl}</td>${use}</tr>`;
+      }).join('');
+    }
+
+    // ---- "Use" button — fills the video path field ----
+    function useFile(path) {
+      document.getElementById('video-path').value = path;
+      document.getElementById('video-path').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ---- payload builders ----
+    function videoPayload() {
+      return {
+        video_input_path: document.getElementById('video-path').value.trim(),
+        video_edit_instructions: document.getElementById('video-instructions').value.trim(),
+        video_output_path: document.getElementById('video-output').value.trim(),
+      };
+    }
+
+    function socialPayload() {
+      return {
+        social_clip_paths: document.getElementById('social-clips').value.trim(),
+        social_topic: document.getElementById('social-topic').value.trim(),
+        social_platforms: document.getElementById('social-platforms').value.trim(),
+        social_upload_now: document.getElementById('social-upload-now').checked ? 'true' : 'false',
+      };
+    }
+
+    function collectivePayload() {
+      return {
+        collective_objective: document.getElementById('collective-objective').value.trim(),
+        collective_context: document.getElementById('collective-context').value.trim(),
+      };
+    }
+
+    // ---- generic agent runner ----
+    async function runAgent(name, payload, btn, downloadKey) {
+      const out = document.getElementById('output-' + name);
+      const spinner = btn.querySelector('.spinner');
+      const dlEl = document.getElementById('dl-' + name);
+
+      btn.disabled = true;
+      spinner.classList.add('visible');
+      out.classList.remove('error', 'visible');
+      out.textContent = '';
+      if (dlEl) { dlEl.innerHTML = ''; dlEl.classList.remove('visible'); }
+
+      try {
+        const resp = await fetch('/run/' + name, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        out.textContent = data.output || '(no output)';
+        if (!resp.ok) out.classList.add('error');
+
+        // Show download link for video output
+        if (dlEl && data.output_path) {
+          const fname = data.output_path.split('/').pop();
+          dlEl.innerHTML = `⬇ <a href="/download/${encodeURIComponent(fname)}" download>Download ${fname}</a>`;
+          dlEl.classList.add('visible');
+          refreshFileList();
+        }
+      } catch (err) {
+        out.textContent = 'Request failed: ' + err.message;
+        out.classList.add('error');
+      } finally {
+        btn.disabled = false;
+        spinner.classList.remove('visible');
+        out.classList.add('visible');
+      }
+    }
+
+    // Load file list on page open
+    refreshFileList();
+  </script>
+</body>
+</html>
+
