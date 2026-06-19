@@ -343,7 +343,7 @@ class TikTokUploader:
             self._API_INIT,
             data=init_payload,
             headers={
-                "Authorization": f"******",
+                "Authorization": f"Bearer {self._token}",
                 "Content-Type": "application/json; charset=UTF-8",
             },
         )

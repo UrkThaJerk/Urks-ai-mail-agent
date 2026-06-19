@@ -87,7 +87,7 @@ class CollectiveLearningAgent:
             f"Objective: {objective}\n"
             f"Shared context: {context or 'None provided.'}\n"
             f"Your specialty: {specialist.specialty}\n\n"
-            "Work separately from the other two agents. Provide:\n"
+            "Work separately from the other agents. Provide:\n"
             "1. Your main contribution\n"
             "2. The biggest risk you see\n"
             "3. What the other agents should know from your perspective"
@@ -164,7 +164,7 @@ class CollectiveLearningAgent:
 
         collective_summary = self._complete(
             (
-                "You are the synthesis layer for a 3-agent collective. "
+                "You are the synthesis layer for a 4-agent collective. "
                 "Combine their work into a shared outcome and emphasize continuous learning."
             ),
             self._build_collective_prompt(objective, context, completed_reports),
@@ -181,7 +181,7 @@ class CollectiveLearningAgent:
 def process_collective_jobs() -> None:
     objective = os.getenv("COLLECTIVE_OBJECTIVE", "").strip()
     if not objective:
-        raise ValueError("Set COLLECTIVE_OBJECTIVE to run the three-agent collaborative workflow.")
+        raise ValueError("Set COLLECTIVE_OBJECTIVE to run the four-agent collaborative workflow.")
 
     context = os.getenv("COLLECTIVE_CONTEXT", "").strip()
     output_path = os.getenv("COLLECTIVE_OUTPUT_PATH", "").strip()
