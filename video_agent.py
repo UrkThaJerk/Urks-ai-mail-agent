@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+import yt_dlp
+
 
 SUPPORTED_VIDEO_FORMATS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 ECLIPSE_PROTOTYPE_REFERENCE = "eclipse.gg"
@@ -89,8 +91,6 @@ def download_video(url: str, output_dir: str | None = None) -> str:
 
     Returns the local path to the downloaded file.
     """
-    import yt_dlp  # imported here so the rest of the module works without yt-dlp installed
-
     dest_dir = Path(output_dir).expanduser().resolve() if output_dir else Path.cwd()
     dest_dir.mkdir(parents=True, exist_ok=True)
 
